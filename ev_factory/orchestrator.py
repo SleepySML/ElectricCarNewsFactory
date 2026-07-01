@@ -21,6 +21,9 @@ class Orchestrator:
         )
         for stage in self.stages:
             current = JobState(self.repo.get_job(job_id)["state"])
+            # Guard: terminal states cannot be advanced further.
+            if current in (JobState.FAILED, JobState.PUBLISHED):
+                return current
             # Skip stages already passed (idempotent re-run).
             if HAPPY_PATH.index(stage.produces_state) <= HAPPY_PATH.index(current):
                 continue

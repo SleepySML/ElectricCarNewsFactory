@@ -75,3 +75,31 @@ def test_rerun_skips_completed_stages(tmp_config: Path):
     orch.run_job("2026-07-01-slug")
     orch.run_job("2026-07-01-slug")  # second run
     assert ingest.calls == 1  # not re-run
+
+
+def test_rerun_failed_job_returns_failed_without_crash(tmp_config: Path):
+    cfg, repo = _setup(tmp_config)
+    orch = Orchestrator(cfg, repo, [RecordingStage(), BoomStage()])
+    first = orch.run_job("2026-07-01-slug")
+    assert first == JobState.FAILED
+    # Re-running a FAILED job must return FAILED without raising ValueError.
+    second = orch.run_job("2026-07-01-slug")
+    assert second == JobState.FAILED
+
+
+class RaisingStage(Stage):
+    name = "script"
+    produces_state = JobState.SCRIPTED
+
+    def run(self, ctx: StageContext) -> StageResult:
+        raise RuntimeError("kaboom")
+
+
+def test_raising_stage_marks_job_failed(tmp_config: Path):
+    cfg, repo = _setup(tmp_config)
+    orch = Orchestrator(cfg, repo, [RecordingStage(), RaisingStage()])
+    result = orch.run_job("2026-07-01-slug")
+    assert result == JobState.FAILED
+    error = repo.get_job("2026-07-01-slug")["error"]
+    assert "script" in error
+    assert "kaboom" in error
