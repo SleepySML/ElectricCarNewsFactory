@@ -6,6 +6,8 @@ from ev_factory.models import JobState
 HAPPY_PATH: list[JobState] = [
     JobState.NEW,
     JobState.INGESTED,
+    JobState.STORY_REVIEW,
+    JobState.STORY_APPROVED,
     JobState.SCRIPTED,
     JobState.LOCALIZED,
     JobState.RENDERED,
@@ -13,6 +15,8 @@ HAPPY_PATH: list[JobState] = [
     JobState.APPROVED,
     JobState.PUBLISHED,
 ]
+
+PARK_STATES: set[JobState] = {JobState.STORY_REVIEW, JobState.IN_REVIEW}
 
 _TERMINAL = {JobState.PUBLISHED, JobState.FAILED}
 

@@ -8,6 +8,8 @@ from enum import Enum
 class JobState(str, Enum):
     NEW = "new"
     INGESTED = "ingested"
+    STORY_REVIEW = "story_review"
+    STORY_APPROVED = "story_approved"
     SCRIPTED = "scripted"
     LOCALIZED = "localized"
     RENDERED = "rendered"

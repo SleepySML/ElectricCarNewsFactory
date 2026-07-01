@@ -5,6 +5,7 @@ import pytest
 from ev_factory.db import JobRepository
 from ev_factory.models import JobState
 from ev_factory.statemachine import (
+    PARK_STATES,
     InvalidTransition,
     can_transition,
     next_state,
@@ -49,3 +50,26 @@ def test_transition_rejects_illegal(tmp_path: Path):
     repo.create_job("j", "slug", "2026-07-01", ["en"])
     with pytest.raises(InvalidTransition):
         transition(repo, "j", JobState.PUBLISHED)
+
+
+def test_new_states_exist_and_ordered():
+    from ev_factory.models import JobState
+    from ev_factory.statemachine import HAPPY_PATH
+
+    assert JobState.STORY_REVIEW == "story_review"
+    assert JobState.STORY_APPROVED == "story_approved"
+    i = HAPPY_PATH.index
+    assert i(JobState.INGESTED) < i(JobState.STORY_REVIEW) < i(JobState.STORY_APPROVED) < i(JobState.SCRIPTED)
+
+
+def test_park_states():
+    from ev_factory.models import JobState
+    assert PARK_STATES == {JobState.STORY_REVIEW, JobState.IN_REVIEW}
+
+
+def test_park_and_resume_transitions_allowed():
+    from ev_factory.models import JobState
+    from ev_factory.statemachine import can_transition
+    assert can_transition(JobState.INGESTED, JobState.STORY_REVIEW)
+    assert can_transition(JobState.STORY_REVIEW, JobState.STORY_APPROVED)
+    assert can_transition(JobState.STORY_APPROVED, JobState.SCRIPTED)
