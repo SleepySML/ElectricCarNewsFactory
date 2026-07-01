@@ -134,12 +134,16 @@ checks. Any hard check failing marks the report as blocking (the review gate wil
 ## 6. LLM Client & Data Flow
 
 ### 6.1 `llm.py`
-Thin Claude wrapper: reads `ANTHROPIC_API_KEY` from env; exposes `complete(model, system, prompt,
-max_tokens) -> str` and a JSON-returning variant; retries on transient errors; logs per-call cost via
-`repo.record_cost(...)` so spend rolls into `spend_this_month()`. Enforces the spend cap **before** each
-paid call (over cap → raises → orchestrator marks the job `FAILED`). In `dry_run` it makes no API call
-and returns injected fixture responses, so the whole pipeline runs offline for free. Model IDs pinned in
-config: `claude-haiku-4-5` (curate/rubric), `claude-sonnet-4-6` (script/localize).
+Thin wrapper over the **official Anthropic Python SDK** (`anthropic` package — new dependency). Reads
+`ANTHROPIC_API_KEY` from env; exposes `complete(model, system, prompt, max_tokens) -> str` and a
+JSON-returning variant; relies on the SDK's built-in retry/backoff for transient errors; logs per-call
+cost via `repo.record_cost(...)` (computed from the response `usage` input/output tokens × the model's
+per-token price, pinned in config) so spend rolls into `spend_this_month()`. Enforces the spend cap
+**before** each paid call (over cap → raises → orchestrator marks the job `FAILED`). In `dry_run` it
+never constructs a live client or calls the API — it returns injected fixture responses, so the whole
+pipeline runs offline for free. Model IDs pinned in config: `claude-haiku-4-5` (curate/rubric),
+`claude-sonnet-4-6` (script/localize). The `anthropic` client is the ONLY third-party runtime dependency
+introduced by this plan besides `feedparser`.
 
 ### 6.2 Job-folder artifacts after Plan 2
 
@@ -191,4 +195,3 @@ jobs/2026-07-01-slug/
 - Final starter RSS URL list (exact feed URLs) to seed `config.toml`.
 - Dedup window size N (how many recent story slugs to compare against) and verbatim span length N.
 - Exact rubric wording and pass threshold (default 70).
-- Anthropic SDK vs. raw HTTP for `llm.py` (SDK adds one dependency; raw HTTP keeps deps minimal).
