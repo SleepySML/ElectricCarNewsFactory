@@ -38,18 +38,21 @@ the review web UI, and publishing remain later plans.
 `JobState` happy path becomes:
 
 ```
-NEW → INGESTED → CURATED → STORY_REVIEW → SCRIPTED → LOCALIZED
+NEW → INGESTED → STORY_REVIEW → STORY_APPROVED → SCRIPTED → LOCALIZED
     → RENDERED → IN_REVIEW → APPROVED → PUBLISHED        (FAILED reachable from any active state)
 ```
 
 `RENDERED → IN_REVIEW → APPROVED → PUBLISHED` remain from the foundation and are exercised by later
-plans; Plan 2's far end is `LOCALIZED`. New members added this plan: `CURATED`, `STORY_REVIEW`.
+plans; Plan 2's far end is `LOCALIZED`. New members added this plan: `STORY_REVIEW`, `STORY_APPROVED`.
 
 **Park states:** `PARK_STATES = {STORY_REVIEW, IN_REVIEW}`. When a stage produces a park state, the
-orchestrator advances the milestone, marks the stage done, and **returns** — the pipeline waits for a
-human action to transition the job out of the park. (Plan 2 introduces `STORY_REVIEW`; the human
-approval mechanism/UI is Plan 4, but the state and park semantics are built and tested here via direct
-state transitions.)
+orchestrator advances the milestone, marks the stage done, and **returns** (halts). While the job sits
+in a park state, subsequent `run_job` calls halt immediately at the top of the loop — nothing runs
+until a human action transitions the job out of the park. The `CurateStage` produces `STORY_REVIEW`;
+the human's "approve story" action is a `STORY_REVIEW → STORY_APPROVED` transition, after which
+`ScriptStage` runs. `STORY_APPROVED` exists precisely so "parked, awaiting review" is distinguishable
+from "approved, resume scripting." (The approval UI is Plan 4; Plan 2 builds and tests the states and
+park/resume semantics via direct state transitions.)
 
 ### 3.2 Per-stage completion table
 
@@ -92,12 +95,12 @@ published date, and a few short factual bullet points per item — **never** the
 **Starter allowlist** (editable in `config.toml`, `rss_sources`): InsideEVs, Electrek, CleanTechnica,
 Green Car Reports, and manufacturer press rooms (Tesla, Rivian, Hyundai, BYD). All RSS.
 
-### 4.2 `CurateStage` (`curate.py`) → `CURATED`, parks at `STORY_REVIEW`
+### 4.2 `CurateStage` (`curate.py`) → `STORY_REVIEW` (park)
 A Claude Haiku call ranks candidates, dedupes against the last N story slugs (repetition rule), and
 picks the single best story with a suggested original **angle**. Runs a source-count check
 (≥2 reputable sources; single-source stories are flagged). Writes `story.json` (chosen story, angle,
-candidate list, source URLs). `produces_state = STORY_REVIEW` (a park), so the orchestrator stops here
-for the early human approval.
+candidate list, source URLs). `produces_state = STORY_REVIEW` (a park), so the orchestrator halts here
+for the early human approval (`STORY_REVIEW → STORY_APPROVED` resumes the pipeline into `ScriptStage`).
 
 ### 4.3 `ScriptStage` (`script.py`) → `SCRIPTED`
 A Claude Sonnet call writes the original English commentary from story + angle + facts — instructed to
