@@ -69,3 +69,22 @@ def test_post_record_and_idempotency_lookup(tmp_path: Path):
     repo.record_post("j", "en", "youtube", "vid123", "http://y/vid123")
     post = repo.get_post("j", "en", "youtube")
     assert post["post_id"] == "vid123"
+
+
+def test_mark_and_get_stage_status(tmp_path):
+    repo = make_repo(tmp_path)
+    repo.create_job("j", "slug", "2026-07-01", ["en"])
+    assert repo.get_stage_status("j", "ingest") is None
+    repo.mark_stage("j", "ingest", "done")
+    assert repo.get_stage_status("j", "ingest") == "done"
+    repo.mark_stage("j", "ingest", "failed")  # overwrite
+    assert repo.get_stage_status("j", "ingest") == "failed"
+
+
+def test_recent_slugs_newest_first(tmp_path):
+    repo = make_repo(tmp_path)
+    repo.create_job("2026-06-29-a", "a", "2026-06-29", ["en"])
+    repo.create_job("2026-07-01-b", "b", "2026-07-01", ["en"])
+    repo.create_job("2026-06-30-c", "c", "2026-06-30", ["en"])
+    assert repo.recent_slugs(2) == ["b", "c"]
+    assert repo.recent_slugs(10) == ["b", "c", "a"]

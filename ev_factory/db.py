@@ -44,6 +44,13 @@ CREATE TABLE IF NOT EXISTS posts (
     created_at TEXT NOT NULL,
     PRIMARY KEY (job_id, lang, platform)
 );
+CREATE TABLE IF NOT EXISTS job_stages (
+    job_id TEXT NOT NULL,
+    stage_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (job_id, stage_name)
+);
 """
 
 
@@ -151,3 +158,27 @@ class JobRepository:
                 (job_id, lang, platform),
             ).fetchone()
             return dict(row) if row else None
+
+    def mark_stage(self, job_id: str, stage_name: str, status: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO job_stages "
+                "(job_id, stage_name, status, updated_at) VALUES (?, ?, ?, ?)",
+                (job_id, stage_name, status, _now()),
+            )
+
+    def get_stage_status(self, job_id: str, stage_name: str) -> str | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT status FROM job_stages WHERE job_id = ? AND stage_name = ?",
+                (job_id, stage_name),
+            ).fetchone()
+            return row["status"] if row else None
+
+    def recent_slugs(self, limit: int) -> list[str]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT slug FROM jobs ORDER BY date DESC, created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [r["slug"] for r in rows]
