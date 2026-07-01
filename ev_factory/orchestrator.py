@@ -5,7 +5,7 @@ from ev_factory.db import JobRepository
 from ev_factory.jobfolder import JobFolder
 from ev_factory.models import JobState, StageStatus
 from ev_factory.stages.base import Stage, StageContext
-from ev_factory.statemachine import HAPPY_PATH, transition
+from ev_factory.statemachine import HAPPY_PATH, PARK_STATES, InvalidTransition, transition
 
 
 class Orchestrator:
@@ -21,22 +21,29 @@ class Orchestrator:
         )
         for stage in self.stages:
             current = JobState(self.repo.get_job(job_id)["state"])
-            # Guard: terminal states cannot be advanced further.
-            if current in (JobState.FAILED, JobState.PUBLISHED):
+            # Terminal or parked: halt. A parked job resumes only when a human
+            # transitions it out of the park (e.g. STORY_REVIEW -> STORY_APPROVED).
+            if current in (JobState.FAILED, JobState.PUBLISHED) or current in PARK_STATES:
                 return current
-            # Skip stages already passed (idempotent re-run).
-            if HAPPY_PATH.index(stage.produces_state) <= HAPPY_PATH.index(current):
+            # Skip stages already completed (per-stage tracking, not milestone).
+            if self.repo.get_stage_status(job_id, stage.name) == "done":
                 continue
             # Respect the 'until' ceiling.
             if HAPPY_PATH.index(stage.produces_state) > HAPPY_PATH.index(until):
                 break
             try:
                 result = stage.run(ctx)
-            except Exception as exc:  # noqa: BLE001 - convert to job failure
+                if result.status is not StageStatus.DONE:
+                    self.repo.set_error(job_id, result.message or f"{stage.name} failed")
+                    return JobState.FAILED
+                self.repo.mark_stage(job_id, stage.name, "done")
+                # Advance the coarse milestone only if this stage moves it forward.
+                if HAPPY_PATH.index(stage.produces_state) > HAPPY_PATH.index(current):
+                    transition(self.repo, job_id, stage.produces_state)
+            except (Exception, InvalidTransition) as exc:  # noqa: BLE001
                 self.repo.set_error(job_id, f"{stage.name}: {exc}")
                 return JobState.FAILED
-            if result.status is not StageStatus.DONE:
-                self.repo.set_error(job_id, result.message or f"{stage.name} failed")
-                return JobState.FAILED
-            transition(self.repo, job_id, stage.produces_state)
+            # If this stage produced a park state, halt for the human gate.
+            if stage.produces_state in PARK_STATES:
+                return JobState(self.repo.get_job(job_id)["state"])
         return JobState(self.repo.get_job(job_id)["state"])
