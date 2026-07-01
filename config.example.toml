@@ -1,0 +1,7 @@
+jobs_dir = "jobs"
+db_path = "ev_factory.db"
+source_language = "en"
+target_languages = ["ru", "tr"]
+dry_run = true
+monthly_spend_cap_usd = 90.0
+rss_sources = []
