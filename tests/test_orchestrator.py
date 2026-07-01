@@ -28,6 +28,16 @@ class ScriptStage(Stage):
         return StageResult.ok(self.name)
 
 
+class StoryReviewStage(Stage):
+    """Produces STORY_REVIEW — adjacent to INGESTED in the current HAPPY_PATH."""
+
+    name = "story_review"
+    produces_state = JobState.STORY_REVIEW
+
+    def run(self, ctx: StageContext) -> StageResult:
+        return StageResult.ok(self.name)
+
+
 class BoomStage(Stage):
     name = "script"
     produces_state = JobState.SCRIPTED
@@ -47,10 +57,10 @@ def _setup(tmp_config: Path):
 
 def test_run_job_advances_states(tmp_config: Path):
     cfg, repo = _setup(tmp_config)
-    orch = Orchestrator(cfg, repo, [RecordingStage(), ScriptStage()])
+    orch = Orchestrator(cfg, repo, [RecordingStage(), StoryReviewStage()])
     final = orch.run_job("2026-07-01-slug")
-    assert final == JobState.SCRIPTED
-    assert repo.get_job("2026-07-01-slug")["state"] == JobState.SCRIPTED
+    assert final == JobState.STORY_REVIEW
+    assert repo.get_job("2026-07-01-slug")["state"] == JobState.STORY_REVIEW
 
 
 def test_run_job_stops_at_until(tmp_config: Path):
@@ -71,7 +81,7 @@ def test_failed_stage_marks_job_failed(tmp_config: Path):
 def test_rerun_skips_completed_stages(tmp_config: Path):
     cfg, repo = _setup(tmp_config)
     ingest = RecordingStage()
-    orch = Orchestrator(cfg, repo, [ingest, ScriptStage()])
+    orch = Orchestrator(cfg, repo, [ingest, StoryReviewStage()])
     orch.run_job("2026-07-01-slug")
     orch.run_job("2026-07-01-slug")  # second run
     assert ingest.calls == 1  # not re-run
