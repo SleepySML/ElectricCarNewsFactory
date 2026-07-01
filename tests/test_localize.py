@@ -1,8 +1,10 @@
+import pytest
 from dataclasses import replace
 
 from ev_factory.config import load_config
 from ev_factory.db import JobRepository
 from ev_factory.jobfolder import JobFolder
+from ev_factory.llm import SpendCapExceeded
 from ev_factory.models import StageStatus
 from ev_factory.stages.base import StageContext
 from ev_factory.stages.localize import LocalizeStage
@@ -50,6 +52,18 @@ def test_localize_isolates_failing_language(tmp_config):
     assert statuses["ru"] == "failed"
     assert statuses["tr"] == "done"
     assert folder.script_path("tr").exists()
+
+
+def test_localize_propagates_spend_cap_exceeded(tmp_config):
+    """SpendCapExceeded must propagate out of LocalizeStage, not be swallowed as a per-language failure."""
+    cfg, repo, folder, ctx = _ctx(tmp_config, ["ru", "tr"])
+
+    class SpendCapLLM:
+        def complete(self, model, system, prompt, job_id, stage, max_tokens=1024):
+            raise SpendCapExceeded("monthly cap hit")
+
+    with pytest.raises(SpendCapExceeded):
+        LocalizeStage(SpendCapLLM()).run(ctx)
 
 
 def test_localize_fails_without_english(tmp_config):

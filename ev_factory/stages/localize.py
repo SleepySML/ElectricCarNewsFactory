@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ev_factory.llm import SpendCapExceeded
 from ev_factory.models import JobState, StageResult
 from ev_factory.stages.base import Stage, StageContext
 
@@ -37,6 +38,8 @@ class LocalizeStage(Stage):
                 ctx.folder.script_path(lang).write_text(translated, encoding="utf-8")
                 ctx.repo.set_language_status(ctx.job_id, lang, "done")
                 done.append(lang)
+            except SpendCapExceeded:
+                raise
             except Exception:  # noqa: BLE001 - isolate one language's failure
                 ctx.repo.set_language_status(ctx.job_id, lang, "failed")
                 failed.append(lang)
