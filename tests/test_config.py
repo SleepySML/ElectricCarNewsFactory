@@ -16,3 +16,12 @@ def test_load_config_parses_fields(tmp_config: Path):
 def test_all_languages_puts_source_first(tmp_config: Path):
     cfg = load_config(tmp_config)
     assert cfg.all_languages == ["en", "ru", "tr"]
+
+
+def test_new_llm_defaults(tmp_config):
+    cfg = load_config(tmp_config)
+    assert cfg.model_curate == "claude-haiku-4-5"
+    assert cfg.model_script == "claude-sonnet-4-6"
+    assert cfg.originality_threshold == 70
+    assert cfg.verbatim_span_words == 8
+    assert cfg.dedup_window == 20
